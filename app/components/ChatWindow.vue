@@ -2,7 +2,11 @@
   <div class="chat-container">
     <div class="chat-header">
       <div class="header-content">
-        <div class="chat-icon">💬</div>
+        <div class="chat-icon" aria-hidden="true">
+          <svg viewBox="0 0 24 24" class="chat-icon-svg">
+            <path :d="mdiChatOutline" />
+          </svg>
+        </div>
         <div class="header-text">
           <h1>Realtime Chat</h1>
           <p>{{ messageCount }} tin nhắn</p>
@@ -10,10 +14,15 @@
       </div>
       <div class="header-actions">
         <button class="username-btn" @click="showUserInput = true" title="Đặt tên">
-          👤 {{ userName }}
+          <svg viewBox="0 0 24 24" class="btn-icon">
+            <path :d="mdiAccountCircleOutline" />
+          </svg>
+          <span>{{ userName }}</span>
         </button>
         <button class="clear-btn" @click="clearChat" title="Xóa chat">
-          🗑️
+          <svg viewBox="0 0 24 24" class="btn-icon">
+            <path :d="mdiTrashCanOutline" />
+          </svg>
         </button>
       </div>
     </div>
@@ -43,6 +52,7 @@
 
 <script setup lang="ts">
 import { computed, ref } from 'vue'
+import { mdiAccountCircleOutline, mdiChatOutline, mdiTrashCanOutline } from '@mdi/js'
 import { useChatStore } from '~/stores/chatStore'
 import MessageList from './MessageList.vue'
 import MessageInput from './MessageInput.vue'
@@ -100,7 +110,14 @@ const clearChat = () => {
 }
 
 .chat-icon {
-  font-size: 32px;
+  width: 32px;
+  height: 32px;
+}
+
+.chat-icon-svg {
+  width: 100%;
+  height: 100%;
+  fill: currentColor;
 }
 
 .header-text h1 {
@@ -131,6 +148,9 @@ const clearChat = () => {
   font-size: 14px;
   transition: all 0.2s;
   white-space: nowrap;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
 }
 
 .username-btn:hover {
@@ -141,11 +161,14 @@ const clearChat = () => {
   background: rgba(255, 255, 255, 0.2);
   border: none;
   color: white;
-  padding: 8px 12px;
+  width: 38px;
+  height: 38px;
   border-radius: 8px;
   cursor: pointer;
-  font-size: 18px;
   transition: all 0.2s;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
 }
 
 .clear-btn:hover {
@@ -154,6 +177,12 @@ const clearChat = () => {
 
 .clear-btn:active {
   transform: scale(0.95);
+}
+
+.btn-icon {
+  width: 18px;
+  height: 18px;
+  fill: currentColor;
 }
 
 /* Modal Styles */
