@@ -7,6 +7,7 @@ export interface Message {
   content: string
   user_name: string
   created_at: string
+  updated_at?: string
 }
 
 export const useChatStore = defineStore('chat', () => {
@@ -55,7 +56,7 @@ export const useChatStore = defineStore('chat', () => {
     }
   }
 
-  // Subscribe to real-time updates
+  // Subscribe to real-time updates (INSERT, UPDATE, DELETE)
   const subscribeToMessages = () => {
     const { supabase } = useSupabase()
     if (!supabase) return
@@ -68,9 +69,58 @@ export const useChatStore = defineStore('chat', () => {
           messages.value.push(payload.new as Message)
         }
       )
+      .on('postgres_changes',
+        { event: 'UPDATE', schema: 'public', table: 'messages' },
+        (payload) => {
+          const index = messages.value.findIndex(msg => msg.id === payload.new.id)
+          if (index !== -1) {
+            messages.value[index] = payload.new as Message
+          }
+        }
+      )
+      .on('postgres_changes',
+        { event: 'DELETE', schema: 'public', table: 'messages' },
+        (payload) => {
+          messages.value = messages.value.filter(msg => msg.id !== payload.old.id)
+        }
+      )
       .subscribe()
 
     return subscription
+  }
+
+  // Chỉnh sửa message
+  const updateMessage = async (id: string, newContent: string) => {
+    const { supabase } = useSupabase()
+    if (!supabase || !newContent.trim()) return
+
+    try {
+      const { error } = await supabase
+        .from('messages')
+        .update({ content: newContent.trim(), updated_at: new Date().toISOString() })
+        .eq('id', id)
+
+      if (error) throw error
+    } catch (error) {
+      console.error('Error updating message:', error)
+    }
+  }
+
+  // Xóa một message
+  const deleteMessage = async (id: string) => {
+    const { supabase } = useSupabase()
+    if (!supabase) return
+
+    try {
+      const { error } = await supabase
+        .from('messages')
+        .delete()
+        .eq('id', id)
+
+      if (error) throw error
+    } catch (error) {
+      console.error('Error deleting message:', error)
+    }
   }
 
   // Xóa tất cả messages
@@ -105,6 +155,8 @@ export const useChatStore = defineStore('chat', () => {
     isLoading,
     loadMessages,
     addMessage,
+    updateMessage,
+    deleteMessage,
     subscribeToMessages,
     clearMessages
   }
