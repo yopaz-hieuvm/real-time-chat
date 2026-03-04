@@ -1,13 +1,9 @@
-import { createClient } from '@supabase/supabase-js'
+import { createClient, type SupabaseClient } from '@supabase/supabase-js'
 
-
-// Wrap initialization inside composable so runtime config is accessed at call-time
 export const useSupabase = () => {
+  const nuxtApp = useNuxtApp()
   const config = useRuntimeConfig()
   const { supabaseUrl, supabaseAnonKey } = config.public
-
-  // debug log
-  console.log('[useSupabase] runtime public config', { supabaseUrl, supabaseAnonKey })
 
   if (!supabaseUrl || !supabaseAnonKey) {
     throw new Error(
@@ -16,6 +12,11 @@ export const useSupabase = () => {
     )
   }
 
-  const supabase = createClient(supabaseUrl, supabaseAnonKey)
-  return { supabase }
+  const appWithSupabase = nuxtApp as typeof nuxtApp & { $supabaseClient?: SupabaseClient }
+
+  if (!appWithSupabase.$supabaseClient) {
+    appWithSupabase.$supabaseClient = createClient(supabaseUrl, supabaseAnonKey)
+  }
+
+  return { supabase: appWithSupabase.$supabaseClient }
 }
