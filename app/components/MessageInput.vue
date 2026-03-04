@@ -4,10 +4,12 @@
       <input
         v-model="messageText"
         type="text"
-        :placeholder="activeConversationId ? 'Nhập tin nhắn...' : 'Chọn cuộc trò chuyện để nhắn tin'"
+        :placeholder="
+          activeConversationId ? 'Nhập tin nhắn...' : 'Chọn cuộc trò chuyện để nhắn tin'
+        "
         class="text-input"
         :disabled="isDisabled"
-      >
+      />
       <button type="submit" class="send-btn" :disabled="!messageText.trim() || isDisabled">
         {{ isLoading ? '...' : '➤' }}
       </button>

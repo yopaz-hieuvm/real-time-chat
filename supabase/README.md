@@ -41,6 +41,7 @@ supabase migration new --name your_migration_name
 Sẽ tạo file: `migrations/[timestamp]_your_migration_name.sql`
 
 Ví dụ:
+
 ```bash
 supabase migration new --name add_user_email
 # Tạo: migrations/20240303120000_add_user_email.sql

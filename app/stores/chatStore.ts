@@ -1,4 +1,8 @@
-import type { RealtimeChannel, RealtimePostgresChangesPayload, Session } from '@supabase/supabase-js'
+import type {
+  RealtimeChannel,
+  RealtimePostgresChangesPayload,
+  Session,
+} from '@supabase/supabase-js'
 import { defineStore } from 'pinia'
 import { ref } from 'vue'
 import { useSupabase } from '~/composables/useSupabase'
@@ -41,7 +45,12 @@ interface ConversationRow {
 
 interface ConversationMemberWithConversationRow {
   conversation_id: string
-  conversations: ConversationRow | null
+  conversations: ConversationRow[] | null
+}
+
+interface ConversationMemberRow {
+  conversation_id: string
+  user_id: string
 }
 
 const isRecord = (value: unknown): value is Record<string, unknown> => {
@@ -53,12 +62,12 @@ const toConversationRow = (value: unknown): ConversationRow | null => {
 
   const { id, type, name, pair_key, created_by, created_at } = value
   if (
-    typeof id !== 'string'
-    || (type !== 'direct' && type !== 'group')
-    || (name !== null && typeof name !== 'string')
-    || (pair_key !== null && typeof pair_key !== 'string')
-    || typeof created_by !== 'string'
-    || typeof created_at !== 'string'
+    typeof id !== 'string' ||
+    (type !== 'direct' && type !== 'group') ||
+    (name !== null && typeof name !== 'string') ||
+    (pair_key !== null && typeof pair_key !== 'string') ||
+    typeof created_by !== 'string' ||
+    typeof created_at !== 'string'
   ) {
     return null
   }
@@ -78,13 +87,13 @@ const toChatMessage = (value: unknown): ChatMessage | null => {
 
   const { id, conversation_id, content, sender_id, sender_name, created_at, updated_at } = value
   if (
-    typeof id !== 'string'
-    || typeof conversation_id !== 'string'
-    || typeof content !== 'string'
-    || typeof sender_id !== 'string'
-    || typeof sender_name !== 'string'
-    || typeof created_at !== 'string'
-    || typeof updated_at !== 'string'
+    typeof id !== 'string' ||
+    typeof conversation_id !== 'string' ||
+    typeof content !== 'string' ||
+    typeof sender_id !== 'string' ||
+    typeof sender_name !== 'string' ||
+    typeof created_at !== 'string' ||
+    typeof updated_at !== 'string'
   ) {
     return null
   }
@@ -109,8 +118,8 @@ const getPeerIdFromPairKey = (pairKey: string | null, currentUserId: string): st
   const ids = pairKey.split(':').filter(Boolean)
   if (ids.length !== 2) return null
 
-  if (ids[0] === currentUserId) return ids[1]
-  if (ids[1] === currentUserId) return ids[0]
+  if (ids[0] === currentUserId) return ids[1] ?? null
+  if (ids[1] === currentUserId) return ids[0] ?? null
   return null
 }
 
@@ -124,7 +133,7 @@ const buildConversationTitle = (
     return conversation.name || 'Nhóm chưa đặt tên'
   }
 
-  const otherMember = members.find(member => member.id !== currentUserId)
+  const otherMember = members.find((member) => member.id !== currentUserId)
   if (otherMember) return otherMember.display_name
 
   const peerId = getPeerIdFromPairKey(conversation.pair_key, currentUserId)
@@ -262,7 +271,7 @@ export const useChatStore = defineStore('chat', () => {
       if (memberError) throw memberError
 
       const conversationRows = ((memberRows || []) as ConversationMemberWithConversationRow[])
-        .map(row => toConversationRow(row.conversations))
+        .map((row) => toConversationRow(row.conversations))
         .filter((row: ConversationRow | null): row is ConversationRow => Boolean(row))
 
       if (conversationRows.length === 0) {
@@ -271,14 +280,19 @@ export const useChatStore = defineStore('chat', () => {
         return
       }
 
-      const usersById = new Map(users.value.map(user => [user.id, user] as const))
+      const usersById = new Map(users.value.map((user) => [user.id, user] as const))
 
       const nextConversations = conversationRows
         .map((conversation) => {
           return {
             ...conversation,
             members: [],
-            title: buildConversationTitle(conversation, [], currentUserId.value as string, usersById),
+            title: buildConversationTitle(
+              conversation,
+              [],
+              currentUserId.value as string,
+              usersById,
+            ),
           } satisfies Conversation
         })
         .sort((a, b) => {
@@ -287,7 +301,9 @@ export const useChatStore = defineStore('chat', () => {
 
       conversations.value = nextConversations
 
-      const activeExists = nextConversations.some(conversation => conversation.id === activeConversationId.value)
+      const activeExists = nextConversations.some(
+        (conversation) => conversation.id === activeConversationId.value,
+      )
       if (!activeExists) {
         await setActiveConversation(nextConversations[0]?.id || null)
       }
@@ -334,7 +350,11 @@ export const useChatStore = defineStore('chat', () => {
         .maybeSingle()
 
       if (existingConversationError) {
-        logSupabaseError('createDirectConversation.findExisting', existingConversationError, { pairKey, authUserId, targetUserId })
+        logSupabaseError('createDirectConversation.findExisting', existingConversationError, {
+          pairKey,
+          authUserId,
+          targetUserId,
+        })
         throw existingConversationError
       }
 
@@ -348,10 +368,14 @@ export const useChatStore = defineStore('chat', () => {
           )
 
         if (ensureSelfMemberError) {
-          logSupabaseError('createDirectConversation.ensureExistingSelfMember', ensureSelfMemberError, {
-            conversationId: existingConversation.id,
-            authUserId,
-          })
+          logSupabaseError(
+            'createDirectConversation.ensureExistingSelfMember',
+            ensureSelfMemberError,
+            {
+              conversationId: existingConversation.id,
+              authUserId,
+            },
+          )
           throw ensureSelfMemberError
         }
 
@@ -363,10 +387,14 @@ export const useChatStore = defineStore('chat', () => {
           )
 
         if (ensureTargetMemberError) {
-          logSupabaseError('createDirectConversation.ensureExistingTargetMember', ensureTargetMemberError, {
-            conversationId: existingConversation.id,
-            targetUserId,
-          })
+          logSupabaseError(
+            'createDirectConversation.ensureExistingTargetMember',
+            ensureTargetMemberError,
+            {
+              conversationId: existingConversation.id,
+              targetUserId,
+            },
+          )
           throw ensureTargetMemberError
         }
 
@@ -385,7 +413,11 @@ export const useChatStore = defineStore('chat', () => {
         .single()
 
       if (createdConversationError) {
-        logSupabaseError('createDirectConversation.insertConversation', createdConversationError, { pairKey, authUserId, targetUserId })
+        logSupabaseError('createDirectConversation.insertConversation', createdConversationError, {
+          pairKey,
+          authUserId,
+          targetUserId,
+        })
         throw createdConversationError
       }
 
@@ -397,7 +429,10 @@ export const useChatStore = defineStore('chat', () => {
         )
 
       if (selfMemberError) {
-        logSupabaseError('createDirectConversation.insertSelfMember', selfMemberError, { conversationId: createdConversation.id, authUserId })
+        logSupabaseError('createDirectConversation.insertSelfMember', selfMemberError, {
+          conversationId: createdConversation.id,
+          authUserId,
+        })
         throw selfMemberError
       }
 
@@ -409,7 +444,10 @@ export const useChatStore = defineStore('chat', () => {
         )
 
       if (targetMemberError) {
-        logSupabaseError('createDirectConversation.insertTargetMember', targetMemberError, { conversationId: createdConversation.id, targetUserId })
+        logSupabaseError('createDirectConversation.insertTargetMember', targetMemberError, {
+          conversationId: createdConversation.id,
+          targetUserId,
+        })
         throw targetMemberError
       }
 
@@ -424,13 +462,16 @@ export const useChatStore = defineStore('chat', () => {
     }
   }
 
-  const createGroupConversation = async (name: string, memberIds: string[]): Promise<string | null> => {
+  const createGroupConversation = async (
+    name: string,
+    memberIds: string[],
+  ): Promise<string | null> => {
     const { supabase } = useSupabase()
     const authUserId = await resolveAuthUserId()
     if (!authUserId) return null
 
     const trimmedName = name.trim()
-    const uniqueMemberIds = [...new Set(memberIds)].filter(id => id !== authUserId)
+    const uniqueMemberIds = [...new Set(memberIds)].filter((id) => id !== authUserId)
 
     if (!trimmedName || uniqueMemberIds.length < 2) {
       return null
@@ -472,7 +513,7 @@ export const useChatStore = defineStore('chat', () => {
         throw selfMemberError
       }
 
-      const membersPayload = uniqueMemberIds.map(memberId => ({
+      const membersPayload = uniqueMemberIds.map((memberId) => ({
         conversation_id: createdConversation.id,
         user_id: memberId,
       }))
@@ -493,7 +534,11 @@ export const useChatStore = defineStore('chat', () => {
       await setActiveConversation(createdConversation.id)
       return createdConversation.id
     } catch (error) {
-      logSupabaseError('createGroupConversation', error, { authUserId, trimmedName, uniqueMemberIds })
+      logSupabaseError('createGroupConversation', error, {
+        authUserId,
+        trimmedName,
+        uniqueMemberIds,
+      })
       return null
     } finally {
       isLoading.value = false
@@ -507,14 +552,12 @@ export const useChatStore = defineStore('chat', () => {
 
     try {
       isLoading.value = true
-      const { error } = await supabase
-        .from('chat_messages')
-        .insert({
-          conversation_id: activeConversationId.value,
-          content: content.trim(),
-          sender_id: authUserId,
-          sender_name: userName.value,
-        })
+      const { error } = await supabase.from('chat_messages').insert({
+        conversation_id: activeConversationId.value,
+        content: content.trim(),
+        sender_id: authUserId,
+        sender_name: userName.value,
+      })
 
       if (error) {
         logSupabaseError('addMessage.insert', error, { authUserId })
@@ -553,10 +596,7 @@ export const useChatStore = defineStore('chat', () => {
     if (!authUserId) return
 
     try {
-      const { error } = await supabase
-        .from('chat_messages')
-        .delete()
-        .eq('id', id)
+      const { error } = await supabase.from('chat_messages').delete().eq('id', id)
 
       if (error) {
         logSupabaseError('deleteMessage.delete', error, { authUserId, messageId: id })
@@ -588,6 +628,12 @@ export const useChatStore = defineStore('chat', () => {
     }
   }
 
+  function isConversationMemberRow(data: unknown): data is ConversationMemberRow {
+    return (
+      typeof data === 'object' && data !== null && 'user_id' in data && 'conversation_id' in data
+    )
+  }
+
   const subscribeToRealtime = () => {
     const { supabase } = useSupabase()
     if (!currentUserId.value) return null
@@ -608,10 +654,20 @@ export const useChatStore = defineStore('chat', () => {
       .on(
         'postgres_changes',
         { event: '*', schema: 'public', table: 'conversation_members' },
-        async (payload: RealtimePostgresChangesPayload<Record<string, unknown>>) => {
-          const affectedUserId = payload.new?.user_id || payload.old?.user_id
-          const affectedConversationId = payload.new?.conversation_id || payload.old?.conversation_id
-          const isCurrentConversation = conversations.value.some(conversation => conversation.id === affectedConversationId)
+        async (payload: RealtimePostgresChangesPayload<ConversationMemberRow>) => {
+          const newRow = isConversationMemberRow(payload.new) ? payload.new : null
+
+          const oldRow = isConversationMemberRow(payload.old) ? payload.old : null
+
+          const affectedUserId = newRow?.user_id ?? oldRow?.user_id
+
+          const affectedConversationId = newRow?.conversation_id ?? oldRow?.conversation_id
+
+          if (!affectedConversationId) return
+
+          const isCurrentConversation = conversations.value.some(
+            (conversation) => conversation.id === affectedConversationId,
+          )
 
           if (affectedUserId === currentUserId.value || isCurrentConversation) {
             await loadConversations()
@@ -637,7 +693,7 @@ export const useChatStore = defineStore('chat', () => {
           if (!updatedMessage) return
           if (updatedMessage.conversation_id !== activeConversationId.value) return
 
-          const index = messages.value.findIndex(message => message.id === updatedMessage.id)
+          const index = messages.value.findIndex((message) => message.id === updatedMessage.id)
           if (index === -1) return
           messages.value[index] = updatedMessage
         },
@@ -650,7 +706,7 @@ export const useChatStore = defineStore('chat', () => {
           if (!deletedMessage) return
           if (deletedMessage.conversation_id !== activeConversationId.value) return
 
-          messages.value = messages.value.filter(message => message.id !== deletedMessage.id)
+          messages.value = messages.value.filter((message) => message.id !== deletedMessage.id)
         },
       )
       .subscribe()
