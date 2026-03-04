@@ -342,7 +342,7 @@ watch(
   border-radius: 6px;
   background: rgba(255, 255, 255, 0.1);
   color: white;
-  font-size: 14px;
+  font-size: 16px;
   font-family: inherit;
 }
 
@@ -431,5 +431,11 @@ watch(
 
 .messages-container::-webkit-scrollbar-thumb:hover {
   background: rgba(0, 0, 0, 0.3);
+}
+
+@media (min-width: 768px) {
+  .edit-input {
+    font-size: 14px;
+  }
 }
 </style>

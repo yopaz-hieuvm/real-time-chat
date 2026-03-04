@@ -52,7 +52,7 @@ const sendMessage = async () => {
   padding: 10px 14px;
   border: 1px solid #e0e0e0;
   border-radius: 24px;
-  font-size: 14px;
+  font-size: 16px;
   font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
   outline: none;
   transition: border-color 0.2s;
@@ -101,5 +101,11 @@ const sendMessage = async () => {
 .send-btn:disabled {
   opacity: 0.5;
   cursor: not-allowed;
+}
+
+@media (min-width: 768px) {
+  .text-input {
+    font-size: 14px;
+  }
 }
 </style>
