@@ -1,74 +1,137 @@
 <template>
   <div class="chat-container">
-    <div class="chat-header">
-      <div class="header-content">
-        <div class="chat-icon" aria-hidden="true">
-          <svg viewBox="0 0 24 24" class="chat-icon-svg">
-            <path :d="mdiChatOutline" />
-          </svg>
-        </div>
-        <div class="header-text">
-          <h1>Realtime Chat</h1>
-          <p>{{ messageCount }} tin nhắn</p>
-        </div>
-      </div>
-      <div class="header-actions">
-        <button class="username-btn" @click="showUserInput = true" title="Đặt tên">
+    <div v-if="authLoading" class="auth-state loading">
+      Đang kiểm tra phiên đăng nhập...
+    </div>
+
+    <div v-else-if="!isAuthenticated" class="auth-state">
+      <div class="auth-card">
+        <h2>Đăng nhập để bắt đầu chat</h2>
+        <p>Vui lòng đăng nhập bằng tài khoản Google trước khi sử dụng phòng chat.</p>
+        <button class="google-btn" @click="signInWithGoogle">
           <svg viewBox="0 0 24 24" class="btn-icon">
-            <path :d="mdiAccountCircleOutline" />
+            <path :d="mdiGoogle" />
           </svg>
-          <span>{{ userName }}</span>
+          <span>Đăng nhập với Google</span>
         </button>
-        <button class="clear-btn" @click="clearChat" title="Xóa chat">
-          <svg viewBox="0 0 24 24" class="btn-icon">
-            <path :d="mdiTrashCanOutline" />
-          </svg>
-        </button>
+        <p v-if="authError" class="auth-error">{{ authError }}</p>
       </div>
     </div>
 
-    <!-- Username Input Modal -->
-    <div v-if="showUserInput" class="modal-overlay" @click="showUserInput = false">
-      <div class="modal-content" @click.stop>
-        <h3>Đặt tên của bạn</h3>
-        <input
-          v-model="tempUserName"
-          type="text"
-          placeholder="Nhập tên..."
-          class="modal-input"
-          @keydown.enter="setUserName"
-        />
-        <div class="modal-actions">
-          <button class="btn-cancel" @click="showUserInput = false">Hủy</button>
-          <button class="btn-ok" @click="setUserName">OK</button>
+    <template v-else>
+      <div class="chat-header">
+        <div class="header-content">
+          <div class="chat-icon" aria-hidden="true">
+            <svg viewBox="0 0 24 24" class="chat-icon-svg">
+              <path :d="mdiChatOutline" />
+            </svg>
+          </div>
+          <div class="header-text">
+            <h1>Realtime Chat</h1>
+            <p>{{ messageCount }} tin nhắn</p>
+          </div>
+        </div>
+        <div class="header-actions">
+          <div class="user-chip" :title="authUserEmail">
+            <svg viewBox="0 0 24 24" class="btn-icon">
+              <path :d="mdiAccountCircleOutline" />
+            </svg>
+            <span>{{ userName }}</span>
+          </div>
+          <button class="clear-btn" @click="clearChat" title="Xóa chat">
+            <svg viewBox="0 0 24 24" class="btn-icon">
+              <path :d="mdiTrashCanOutline" />
+            </svg>
+          </button>
+          <button class="logout-btn" @click="signOut" title="Đăng xuất">
+            <svg viewBox="0 0 24 24" class="btn-icon">
+              <path :d="mdiLogoutVariant" />
+            </svg>
+          </button>
         </div>
       </div>
-    </div>
 
-    <MessageList />
-    <MessageInput />
+      <MessageList />
+      <MessageInput />
+    </template>
   </div>
 </template>
 
 <script setup lang="ts">
-import { computed, ref } from 'vue'
-import { mdiAccountCircleOutline, mdiChatOutline, mdiTrashCanOutline } from '@mdi/js'
+import { computed, onMounted, onUnmounted, ref } from 'vue'
+import {
+  mdiAccountCircleOutline,
+  mdiChatOutline,
+  mdiGoogle,
+  mdiLogoutVariant,
+  mdiTrashCanOutline,
+} from '@mdi/js'
+import type { AuthChangeEvent, Session, Subscription } from '@supabase/supabase-js'
+import { useSupabase } from '~/composables/useSupabase'
 import { useChatStore } from '~/stores/chatStore'
 import MessageList from './MessageList.vue'
 import MessageInput from './MessageInput.vue'
 
 const chatStore = useChatStore()
+const { supabase } = useSupabase()
+
 const messageCount = computed(() => chatStore.messages.length)
 const userName = computed(() => chatStore.userName)
 
-const showUserInput = ref(false)
-const tempUserName = ref(chatStore.userName)
+const authLoading = ref(true)
+const isAuthenticated = ref(false)
+const authError = ref('')
+const authUserEmail = ref('')
+let authSubscription: Subscription | null = null
 
-const setUserName = () => {
-  const name = tempUserName.value.trim()
-  if (name) {
-    chatStore.userName = name
-    showUserInput.value = false
+const applySession = (session: Session | null) => {
+  isAuthenticated.value = Boolean(session)
+
+  if (!session?.user) {
+    authUserEmail.value = ''
+    chatStore.userName = 'Anonymous'
+    chatStore.messages = []
+    return
+  }
+
+  const metadataName = session.user.user_metadata?.full_name || session.user.user_metadata?.name
+  const fallbackName = session.user.email?.split('@')[0]
+  chatStore.userName = metadataName || fallbackName || 'Anonymous'
+  authUserEmail.value = session.user.email || ''
+}
+
+const checkSession = async () => {
+  authLoading.value = true
+  authError.value = ''
+
+  const { data, error } = await supabase.auth.getSession()
+  if (error) {
+    authError.value = 'Không thể kiểm tra phiên đăng nhập. Vui lòng thử lại.'
+    authLoading.value = false
+    return
+  }
+
+  applySession(data.session)
+  authLoading.value = false
+}
+
+const signInWithGoogle = async () => {
+  authError.value = ''
+  const redirectTo = window.location.origin
+  const { error } = await supabase.auth.signInWithOAuth({
+    provider: 'google',
+    options: { redirectTo },
+  })
+
+  if (error) {
+    authError.value = 'Đăng nhập Google thất bại. Vui lòng thử lại.'
+  }
+}
+
+const signOut = async () => {
+  const { error } = await supabase.auth.signOut()
+  if (error) {
+    alert('Đăng xuất thất bại, vui lòng thử lại.')
   }
 }
 
@@ -77,6 +140,21 @@ const clearChat = () => {
     chatStore.clearMessages()
   }
 }
+
+onMounted(async () => {
+  await checkSession()
+
+  const { data } = supabase.auth.onAuthStateChange((_event: AuthChangeEvent, session: Session | null) => {
+    applySession(session)
+    authLoading.value = false
+  })
+
+  authSubscription = data.subscription
+})
+
+onUnmounted(() => {
+  authSubscription?.unsubscribe()
+})
 </script>
 
 <style scoped>
@@ -91,6 +169,71 @@ const clearChat = () => {
   border-radius: 16px;
   box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
   overflow: hidden;
+}
+
+.auth-state {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+  background: linear-gradient(180deg, #ffffff 0%, #f7f9ff 100%);
+}
+
+.auth-state.loading {
+  color: #667eea;
+  font-weight: 600;
+}
+
+.auth-card {
+  width: 100%;
+  max-width: 360px;
+  text-align: center;
+  background: white;
+  border: 1px solid #e5eaf7;
+  border-radius: 14px;
+  box-shadow: 0 10px 30px rgba(102, 126, 234, 0.12);
+  padding: 24px;
+}
+
+.auth-card h2 {
+  margin: 0 0 10px 0;
+  color: #222;
+  font-size: 22px;
+}
+
+.auth-card p {
+  margin: 0 0 16px 0;
+  color: #5d677a;
+  font-size: 14px;
+}
+
+.google-btn {
+  width: 100%;
+  border: none;
+  border-radius: 10px;
+  cursor: pointer;
+  padding: 12px;
+  color: white;
+  background: linear-gradient(135deg, #4285f4 0%, #1a73e8 100%);
+  display: inline-flex;
+  justify-content: center;
+  align-items: center;
+  gap: 8px;
+  font-size: 15px;
+  font-weight: 600;
+  transition: transform 0.2s, box-shadow 0.2s;
+}
+
+.google-btn:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 6px 16px rgba(26, 115, 232, 0.35);
+}
+
+.auth-error {
+  margin-top: 10px;
+  color: #d32f2f;
+  font-size: 13px;
 }
 
 .chat-header {
@@ -138,26 +281,20 @@ const clearChat = () => {
   align-items: center;
 }
 
-.username-btn {
+.user-chip {
   background: rgba(255, 255, 255, 0.2);
-  border: none;
   color: white;
   padding: 8px 12px;
   border-radius: 8px;
-  cursor: pointer;
   font-size: 14px;
-  transition: all 0.2s;
   white-space: nowrap;
   display: inline-flex;
   align-items: center;
   gap: 6px;
 }
 
-.username-btn:hover {
-  background: rgba(255, 255, 255, 0.3);
-}
-
-.clear-btn {
+.clear-btn,
+.logout-btn {
   background: rgba(255, 255, 255, 0.2);
   border: none;
   color: white;
@@ -171,11 +308,13 @@ const clearChat = () => {
   justify-content: center;
 }
 
-.clear-btn:hover {
+.clear-btn:hover,
+.logout-btn:hover {
   background: rgba(255, 255, 255, 0.3);
 }
 
-.clear-btn:active {
+.clear-btn:active,
+.logout-btn:active {
   transform: scale(0.95);
 }
 
@@ -183,90 +322,5 @@ const clearChat = () => {
   width: 18px;
   height: 18px;
   fill: currentColor;
-}
-
-/* Modal Styles */
-.modal-overlay {
-  position: fixed;
-  top: 0;
-  left: 0;
-  right: 0;
-  bottom: 0;
-  background: rgba(0, 0, 0, 0.5);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  z-index: 1000;
-}
-
-.modal-content {
-  background: white;
-  border-radius: 12px;
-  padding: 24px;
-  max-width: 300px;
-  width: 90%;
-  box-shadow: 0 10px 40px rgba(0, 0, 0, 0.2);
-}
-
-.modal-content h3 {
-  margin: 0 0 16px 0;
-  color: #333;
-  font-size: 18px;
-}
-
-.modal-input {
-  width: 100%;
-  padding: 10px 12px;
-  border: 1px solid #e0e0e0;
-  border-radius: 8px;
-  font-size: 14px;
-  margin-bottom: 16px;
-  box-sizing: border-box;
-  outline: none;
-}
-
-.modal-input:focus {
-  border-color: #667eea;
-  box-shadow: 0 0 0 2px rgba(102, 126, 234, 0.1);
-}
-
-.modal-actions {
-  display: flex;
-  gap: 8px;
-  justify-content: flex-end;
-}
-
-.btn-cancel,
-.btn-ok {
-  padding: 8px 16px;
-  border: none;
-  border-radius: 6px;
-  cursor: pointer;
-  font-size: 14px;
-  font-weight: 500;
-  transition: all 0.2s;
-}
-
-.btn-cancel {
-  background: #f0f0f0;
-  color: #333;
-}
-
-.btn-cancel:hover {
-  background: #e0e0e0;
-}
-
-.btn-ok {
-  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-  color: white;
-}
-
-.btn-ok:hover {
-  transform: scale(1.02);
-  box-shadow: 0 4px 12px rgba(102, 126, 234, 0.4);
-}
-
-.btn-ok:active {
-  transform: scale(0.98);
 }
 </style>
