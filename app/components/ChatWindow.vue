@@ -7,7 +7,7 @@
     <div v-else-if="!isAuthenticated" class="auth-state">
       <div class="auth-card">
         <h2>Đăng nhập để bắt đầu chat</h2>
-        <p>Vui lòng đăng nhập bằng tài khoản Google trước khi sử dụng phòng chat.</p>
+        <p>Vui lòng đăng nhập bằng tài khoản Google để sử dụng hệ thống hội thoại.</p>
         <button class="google-btn" @click="signInWithGoogle">
           <svg viewBox="0 0 24 24" class="btn-icon">
             <path :d="mdiGoogle" />
@@ -19,40 +19,99 @@
     </div>
 
     <template v-else>
-      <div class="chat-header">
-        <div class="header-content">
-          <div class="chat-icon" aria-hidden="true">
-            <svg viewBox="0 0 24 24" class="chat-icon-svg">
-              <path :d="mdiChatOutline" />
-            </svg>
+      <aside class="sidebar">
+        <div class="sidebar-header">
+          <div>
+            <h2>Messenger Lite</h2>
+            <p>{{ conversations.length }} cuộc trò chuyện</p>
           </div>
-          <div class="header-text">
-            <h1>Realtime Chat</h1>
-            <p>{{ messageCount }} tin nhắn</p>
-          </div>
-        </div>
-        <div class="header-actions">
-          <div class="user-chip" :title="authUserEmail">
-            <svg viewBox="0 0 24 24" class="btn-icon">
-              <path :d="mdiAccountCircleOutline" />
-            </svg>
-            <span>{{ userName }}</span>
-          </div>
-          <button class="clear-btn" title="Xóa chat" @click="clearChat">
-            <svg viewBox="0 0 24 24" class="btn-icon">
-              <path :d="mdiTrashCanOutline" />
-            </svg>
-          </button>
           <button class="logout-btn" title="Đăng xuất" @click="signOut">
             <svg viewBox="0 0 24 24" class="btn-icon">
               <path :d="mdiLogoutVariant" />
             </svg>
           </button>
         </div>
-      </div>
 
-      <MessageList />
-      <MessageInput />
+        <div class="user-chip" :title="authUserEmail">
+          <svg viewBox="0 0 24 24" class="btn-icon">
+            <path :d="mdiAccountCircleOutline" />
+          </svg>
+          <span>{{ userName }}</span>
+        </div>
+
+        <div class="contacts-list">
+          <p class="section-label">Danh bạ (chat 1-1)</p>
+          <button
+            v-for="user in users"
+            :key="user.id"
+            class="contact-item"
+            @click="startDirectChat(user.id)"
+          >
+            <span class="contact-name">{{ user.display_name }}</span>
+            <span class="contact-tag">{{ getDirectConversationWithUser(user.id) ? 'Đã có chat' : 'Nhắn ngay' }}</span>
+          </button>
+        </div>
+
+        <div class="create-actions">
+          <button class="create-btn" @click="showGroupCreator = !showGroupCreator">
+            <svg viewBox="0 0 24 24" class="btn-icon">
+              <path :d="mdiAccountGroupOutline" />
+            </svg>
+            Tạo nhóm
+          </button>
+        </div>
+
+        <div v-if="showGroupCreator" class="creator-card">
+          <input v-model="groupName" type="text" class="text-input" placeholder="Tên nhóm" >
+          <div class="group-members">
+            <label v-for="user in users" :key="user.id" class="member-item">
+              <input v-model="selectedGroupMemberIds" type="checkbox" :value="user.id" >
+              <span>{{ user.display_name }}</span>
+            </label>
+          </div>
+          <button
+            class="creator-submit"
+            :disabled="!groupName.trim() || selectedGroupMemberIds.length < 2 || isLoading"
+            @click="createGroupChat"
+          >
+            Tạo nhóm
+          </button>
+          <p class="hint">Nhóm cần tối thiểu 3 thành viên (bao gồm bạn).</p>
+        </div>
+
+        <div class="conversation-list">
+          <p class="section-label">Cuộc trò chuyện</p>
+          <button
+            v-for="conversation in conversations"
+            :key="conversation.id"
+            class="conversation-item"
+            :class="{ active: conversation.id === activeConversationId }"
+            @click="openConversation(conversation.id)"
+          >
+            <div class="conversation-title">{{ conversation.title }}</div>
+            <div class="conversation-type">{{ conversation.type === 'group' ? 'Nhóm' : '1-1' }}</div>
+          </button>
+        </div>
+      </aside>
+
+      <main class="main-chat">
+        <div class="chat-header">
+          <div class="header-content">
+            <div class="chat-icon" aria-hidden="true">
+              <svg viewBox="0 0 24 24" class="chat-icon-svg">
+                <path :d="mdiChatOutline" />
+              </svg>
+            </div>
+            <div class="header-text">
+              <h1>{{ activeConversation?.title || 'Chưa chọn cuộc trò chuyện' }}</h1>
+              <p>{{ messageCount }} tin nhắn</p>
+            </div>
+          </div>
+        </div>
+
+        <MessageList />
+        <MessageInput />
+      </main>
     </template>
   </div>
 </template>
@@ -61,10 +120,10 @@
 import { computed, onMounted, onUnmounted, ref } from 'vue'
 import {
   mdiAccountCircleOutline,
+  mdiAccountGroupOutline,
   mdiChatOutline,
   mdiGoogle,
   mdiLogoutVariant,
-  mdiTrashCanOutline,
 } from '@mdi/js'
 import type { AuthChangeEvent, Session } from '@supabase/supabase-js'
 import { useSupabase } from '~/composables/useSupabase'
@@ -76,29 +135,35 @@ const chatStore = useChatStore()
 const { supabase } = useSupabase()
 
 const messageCount = computed(() => chatStore.messages.length)
+const conversations = computed(() => chatStore.conversations)
+const users = computed(() => chatStore.users)
 const userName = computed(() => chatStore.userName)
+const activeConversationId = computed(() => chatStore.activeConversationId)
+const activeConversation = computed(() => {
+  return chatStore.conversations.find(conversation => conversation.id === chatStore.activeConversationId) || null
+})
+const isLoading = computed(() => chatStore.isLoading)
 
 const authLoading = ref<boolean>(true)
 const isAuthenticated = ref<boolean>(false)
 const authError = ref<string>('')
 const authUserEmail = ref<string>('')
+const showGroupCreator = ref<boolean>(false)
+const selectedGroupMemberIds = ref<string[]>([])
+const groupName = ref<string>('')
+
 type AuthSubscription = ReturnType<typeof supabase.auth.onAuthStateChange>['data']['subscription']
 let authSubscription: AuthSubscription | null = null
 
-const applySession = (session: Session | null): void => {
+const applySession = async (session: Session | null): Promise<void> => {
+  console.error('[ChatWindow.applySession]', {
+    hasSession: Boolean(session),
+    userId: session?.user?.id || null,
+    email: session?.user?.email || null,
+  })
   isAuthenticated.value = Boolean(session)
-
-  if (!session?.user) {
-    authUserEmail.value = ''
-    chatStore.userName = 'Anonymous'
-    chatStore.messages = []
-    return
-  }
-
-  const metadataName = session.user.user_metadata?.full_name || session.user.user_metadata?.name
-  const fallbackName = session.user.email?.split('@')[0]
-  chatStore.userName = metadataName || fallbackName || 'Anonymous'
-  authUserEmail.value = session.user.email || ''
+  authUserEmail.value = session?.user?.email || ''
+  await chatStore.initializeFromSession(session)
 }
 
 const checkSession = async (): Promise<void> => {
@@ -107,12 +172,19 @@ const checkSession = async (): Promise<void> => {
 
   const { data, error } = await supabase.auth.getSession()
   if (error) {
+    console.error('[ChatWindow.checkSession.error]', error)
     authError.value = 'Không thể kiểm tra phiên đăng nhập. Vui lòng thử lại.'
     authLoading.value = false
     return
   }
 
-  applySession(data.session)
+  console.error('[ChatWindow.checkSession.result]', {
+    hasSession: Boolean(data.session),
+    userId: data.session?.user?.id || null,
+    email: data.session?.user?.email || null,
+  })
+
+  await applySession(data.session)
   authLoading.value = false
 }
 
@@ -125,6 +197,7 @@ const signInWithGoogle = async (): Promise<void> => {
   })
 
   if (error) {
+    console.error('[ChatWindow.signInWithGoogle.error]', error)
     authError.value = 'Đăng nhập Google thất bại. Vui lòng thử lại.'
   }
 }
@@ -132,22 +205,96 @@ const signInWithGoogle = async (): Promise<void> => {
 const signOut = async (): Promise<void> => {
   const { error } = await supabase.auth.signOut()
   if (error) {
+    console.error('[ChatWindow.signOut.error]', error)
     alert('Đăng xuất thất bại, vui lòng thử lại.')
   }
 }
 
-const clearChat = (): void => {
-  if (confirm('Bạn có chắc muốn xóa toàn bộ đoạn chat?')) {
-    chatStore.clearMessages()
+const openConversation = async (conversationId: string): Promise<void> => {
+  await chatStore.setActiveConversation(conversationId)
+}
+
+const getDirectPeerId = (pairKey: string | null): string | null => {
+  if (!pairKey || !chatStore.currentUserId) return null
+  const ids = pairKey.split(':').filter(Boolean)
+  if (ids.length !== 2) return null
+  if (ids[0] === chatStore.currentUserId) return ids[1]
+  if (ids[1] === chatStore.currentUserId) return ids[0]
+  return null
+}
+
+const getDirectConversationWithUser = (userId: string) => {
+  return conversations.value.find((conversation) => {
+    return conversation.type === 'direct' && getDirectPeerId(conversation.pair_key) === userId
+  }) || null
+}
+
+const startDirectChat = async (userId: string): Promise<void> => {
+  console.error('[ChatWindow.startDirectChat]', { userId })
+  const existingConversation = getDirectConversationWithUser(userId)
+  if (existingConversation) {
+    console.error('[ChatWindow.startDirectChat.existing]', { conversationId: existingConversation.id })
+    await openConversation(existingConversation.id)
+    return
   }
+
+  console.error('[ChatWindow.startDirectChat.create]')
+  const createdId = await chatStore.createDirectConversation(userId)
+
+  // Force sync UI after create to avoid "silent no-op" when remote response is delayed.
+  await chatStore.loadConversations()
+
+  const targetConversation = createdId
+    ? conversations.value.find(conversation => conversation.id === createdId) || null
+    : getDirectConversationWithUser(userId)
+
+  if (targetConversation) {
+    await openConversation(targetConversation.id)
+    return
+  }
+
+  // Fallback: open by created id even if sidebar list is not hydrated yet.
+  if (createdId) {
+    await openConversation(createdId)
+    return
+  }
+
+  console.error('[ChatWindow.startDirectChat.failedToOpen]', {
+    userId,
+    createdId,
+    conversationsCount: conversations.value.length,
+  })
+  alert('Chưa thể mở cuộc trò chuyện 1-1. Vui lòng thử lại.')
+}
+
+const createGroupChat = async (): Promise<void> => {
+  console.error('[ChatWindow.createGroupChat]', {
+    groupName: groupName.value,
+    selectedGroupMemberIds: selectedGroupMemberIds.value,
+  })
+  const createdId = await chatStore.createGroupConversation(groupName.value, selectedGroupMemberIds.value)
+  if (!createdId) {
+    console.error('[ChatWindow.createGroupChat.failed]')
+    alert('Không thể tạo nhóm. Kiểm tra lại tên nhóm và số lượng thành viên.')
+    return
+  }
+
+  groupName.value = ''
+  selectedGroupMemberIds.value = []
+  showGroupCreator.value = false
 }
 
 onMounted(async () => {
   await checkSession()
 
   const { data } = supabase.auth.onAuthStateChange(
-    (_event: AuthChangeEvent, session: Session | null) => {
-      applySession(session)
+    async (_event: AuthChangeEvent, session: Session | null) => {
+      console.error('[ChatWindow.onAuthStateChange]', {
+        event: _event,
+        hasSession: Boolean(session),
+        userId: session?.user?.id || null,
+      })
+      await applySession(session)
       authLoading.value = false
     },
   )
@@ -157,20 +304,20 @@ onMounted(async () => {
 
 onUnmounted(() => {
   authSubscription?.unsubscribe()
+  chatStore.stopRealtime()
 })
 </script>
 
 <style scoped>
 .chat-container {
   display: flex;
-  flex-direction: column;
   width: 100%;
-  max-width: 500px;
+  max-width: 1120px;
   height: 100%;
-  max-height: 700px;
+  max-height: 760px;
   background: white;
   border-radius: 16px;
-  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.2);
   overflow: hidden;
 }
 
@@ -200,13 +347,13 @@ onUnmounted(() => {
 }
 
 .auth-card h2 {
-  margin: 0 0 10px 0;
+  margin: 0 0 10px;
   color: #222;
   font-size: 22px;
 }
 
 .auth-card p {
-  margin: 0 0 16px 0;
+  margin: 0 0 16px;
   color: #5d677a;
   font-size: 14px;
 }
@@ -239,14 +386,226 @@ onUnmounted(() => {
   font-size: 13px;
 }
 
+.sidebar {
+  width: 320px;
+  border-right: 1px solid #edf0f8;
+  display: flex;
+  flex-direction: column;
+  padding: 14px;
+  gap: 12px;
+  background: #fcfdff;
+}
+
+.sidebar-header {
+  display: flex;
+  justify-content: space-between;
+  gap: 8px;
+  align-items: center;
+}
+
+.sidebar-header h2 {
+  margin: 0;
+  font-size: 18px;
+  color: #232e43;
+}
+
+.sidebar-header p {
+  margin: 2px 0 0;
+  font-size: 12px;
+  color: #7b8498;
+}
+
+.logout-btn {
+  border: none;
+  border-radius: 8px;
+  padding: 8px;
+  cursor: pointer;
+  background: #f0f3ff;
+  color: #5167b3;
+  transition: background 0.2s;
+}
+
+.logout-btn:hover {
+  background: #dfe7ff;
+}
+
+.user-chip {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  background: #f4f6ff;
+  border: 1px solid #e6eafc;
+  border-radius: 10px;
+  padding: 8px 10px;
+  font-size: 14px;
+  color: #2e3b58;
+}
+
+.section-label {
+  margin: 0 0 6px;
+  font-size: 11px;
+  color: #8a93a9;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.contacts-list {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  overflow-y: auto;
+  max-height: 180px;
+}
+
+.contact-item {
+  border: 1px solid #e8ecf8;
+  border-radius: 10px;
+  background: #fff;
+  text-align: left;
+  padding: 8px 10px;
+  cursor: pointer;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 8px;
+}
+
+.contact-item:hover {
+  border-color: #cbd6ff;
+  background: #f7f9ff;
+}
+
+.contact-name {
+  font-size: 13px;
+  color: #2a3654;
+}
+
+.contact-tag {
+  font-size: 11px;
+  color: #5a72bf;
+}
+
+.create-actions {
+  display: block;
+}
+
+.create-btn {
+  width: 100%;
+  border: none;
+  border-radius: 9px;
+  background: #eff3ff;
+  color: #415ca9;
+  cursor: pointer;
+  padding: 8px;
+  font-size: 12px;
+  font-weight: 600;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 5px;
+}
+
+.creator-card {
+  border: 1px solid #e8ecf8;
+  border-radius: 10px;
+  padding: 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  background: #fff;
+}
+
+.text-input {
+  width: 100%;
+  border: 1px solid #dbe1f3;
+  border-radius: 8px;
+  padding: 8px 10px;
+  font-size: 13px;
+}
+
+.group-members {
+  max-height: 120px;
+  overflow-y: auto;
+  border: 1px solid #edf0f8;
+  border-radius: 8px;
+  padding: 6px;
+}
+
+.member-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+  padding: 4px 2px;
+}
+
+.creator-submit {
+  border: none;
+  border-radius: 8px;
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  color: #fff;
+  padding: 8px;
+  font-size: 13px;
+  cursor: pointer;
+}
+
+.creator-submit:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.hint {
+  margin: 0;
+  font-size: 11px;
+  color: #7d8599;
+}
+
+.conversation-list {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  overflow-y: auto;
+}
+
+.conversation-item {
+  border: 1px solid #e8ecf8;
+  border-radius: 10px;
+  background: #fff;
+  text-align: left;
+  padding: 10px;
+  cursor: pointer;
+}
+
+.conversation-item.active {
+  border-color: #667eea;
+  background: #f2f5ff;
+}
+
+.conversation-title {
+  font-size: 14px;
+  font-weight: 600;
+  color: #253454;
+}
+
+.conversation-type {
+  font-size: 12px;
+  color: #6f7a93;
+}
+
+.main-chat {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
 .chat-header {
-  padding: 20px;
+  padding: 16px 20px;
   background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
   color: white;
   display: flex;
   justify-content: space-between;
   align-items: center;
-  flex-shrink: 0;
 }
 
 .header-content {
@@ -258,72 +617,43 @@ onUnmounted(() => {
 .chat-icon {
   width: 32px;
   height: 32px;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.2);
+  display: flex;
+  align-items: center;
+  justify-content: center;
 }
 
-.chat-icon-svg {
-  width: 100%;
-  height: 100%;
+.chat-icon-svg,
+.btn-icon {
+  width: 20px;
+  height: 20px;
   fill: currentColor;
 }
 
 .header-text h1 {
   margin: 0;
-  font-size: 24px;
-  font-weight: 600;
+  font-size: 18px;
 }
 
 .header-text p {
-  margin: 4px 0 0 0;
+  margin: 2px 0 0;
   font-size: 12px;
-  opacity: 0.85;
+  opacity: 0.9;
 }
 
-.header-actions {
-  display: flex;
-  gap: 8px;
-  align-items: center;
-}
+@media (max-width: 900px) {
+  .chat-container {
+    flex-direction: column;
+    max-height: none;
+    height: calc(100vh - 32px);
+  }
 
-.user-chip {
-  background: rgba(255, 255, 255, 0.2);
-  color: white;
-  padding: 8px 12px;
-  border-radius: 8px;
-  font-size: 14px;
-  white-space: nowrap;
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-}
-
-.clear-btn,
-.logout-btn {
-  background: rgba(255, 255, 255, 0.2);
-  border: none;
-  color: white;
-  width: 38px;
-  height: 38px;
-  border-radius: 8px;
-  cursor: pointer;
-  transition: all 0.2s;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-}
-
-.clear-btn:hover,
-.logout-btn:hover {
-  background: rgba(255, 255, 255, 0.3);
-}
-
-.clear-btn:active,
-.logout-btn:active {
-  transform: scale(0.95);
-}
-
-.btn-icon {
-  width: 18px;
-  height: 18px;
-  fill: currentColor;
+  .sidebar {
+    width: 100%;
+    max-height: 50%;
+    border-right: none;
+    border-bottom: 1px solid #edf0f8;
+  }
 }
 </style>

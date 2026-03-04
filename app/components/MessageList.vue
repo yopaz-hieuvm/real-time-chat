@@ -1,23 +1,31 @@
 <template>
   <div class="messages-container">
-    <div v-if="messages.length === 0" class="empty-state">
+    <div v-if="!activeConversationId" class="empty-state">
+      <p>Chọn một cuộc trò chuyện để bắt đầu.</p>
+    </div>
+
+    <div v-else-if="messages.length === 0" class="empty-state">
       <div class="empty-icon" aria-hidden="true">
         <svg viewBox="0 0 24 24" class="empty-icon-svg">
           <path :d="mdiChatOutline" />
         </svg>
       </div>
-      <p>Không có tin nhắn nào. Hãy bắt đầu cuộc trò chuyện!</p>
+      <p>Chưa có tin nhắn nào trong cuộc trò chuyện này.</p>
     </div>
-    <div v-for="message in messages" :key="message.id" :class="['message-wrapper', isCurrentUser(message.user_name) ? 'user' : 'bot']">
-      <div class="avatar" :aria-label="message.user_name">
+
+    <div
+      v-for="message in messages"
+      :key="message.id"
+      :class="['message-wrapper', isCurrentUser(message.sender_id) ? 'user' : 'bot']"
+    >
+      <div class="avatar" :aria-label="message.sender_name">
         <svg viewBox="0 0 24 24" class="avatar-icon">
-          <path :d="isCurrentUser(message.user_name) ? mdiAccountCircle : mdiRobotHappyOutline" />
+          <path :d="isCurrentUser(message.sender_id) ? mdiAccountCircle : mdiAccountGroupOutline" />
         </svg>
       </div>
-      <div class="message-bubble" :class="isCurrentUser(message.user_name) ? 'user' : 'bot'">
-        <div class="message-author">{{ message.user_name }}</div>
-        
-        <!-- Edit mode -->
+      <div class="message-bubble" :class="isCurrentUser(message.sender_id) ? 'user' : 'bot'">
+        <div class="message-author">{{ message.sender_name }}</div>
+
         <div v-if="editingId === message.id" class="edit-mode">
           <input
             v-model="editContent"
@@ -40,8 +48,7 @@
             </button>
           </div>
         </div>
-        
-        <!-- Normal view -->
+
         <template v-else>
           <div class="message-text">{{ message.content }}</div>
           <div class="message-footer">
@@ -51,9 +58,9 @@
                 (chỉnh sửa)
               </span>
             </div>
-            <div v-if="isCurrentUser(message.user_name)" class="message-actions">
-              <button 
-                class="action-btn edit-btn" 
+            <div v-if="isCurrentUser(message.sender_id)" class="message-actions">
+              <button
+                class="action-btn edit-btn"
                 title="Chỉnh sửa"
                 @click="startEdit(message)"
               >
@@ -61,8 +68,8 @@
                   <path :d="mdiPencilOutline" />
                 </svg>
               </button>
-              <button 
-                class="action-btn delete-btn" 
+              <button
+                class="action-btn delete-btn"
                 title="Xóa"
                 @click="deleteMsg(message.id)"
               >
@@ -75,29 +82,29 @@
         </template>
       </div>
     </div>
-    <div ref="scrollContainer"/>
+
+    <div ref="scrollContainer" />
   </div>
 </template>
 
 <script setup lang="ts">
-import { computed, watch, nextTick, ref, onMounted, onUnmounted } from 'vue'
+import { computed, watch, nextTick, ref } from 'vue'
 import {
   mdiAccountCircle,
+  mdiAccountGroupOutline,
   mdiChatOutline,
   mdiCheck,
   mdiClose,
   mdiPencilOutline,
-  mdiRobotHappyOutline,
   mdiTrashCanOutline,
 } from '@mdi/js'
 import { useChatStore } from '~/stores/chatStore'
-import type { Message } from '~/stores/chatStore'
+import type { ChatMessage } from '~/stores/chatStore'
 
 const chatStore = useChatStore()
 const messages = computed(() => chatStore.messages)
+const activeConversationId = computed(() => chatStore.activeConversationId)
 const scrollContainer = ref<HTMLElement | null>(null)
-type MessageSubscription = ReturnType<typeof chatStore.subscribeToMessages>
-let subscription: MessageSubscription | null = null
 
 const editingId = ref<string | null>(null)
 const editContent = ref<string>('')
@@ -109,19 +116,23 @@ const formatTime = (dateStr: string): string => {
   })
 }
 
-const isCurrentUser = (userName: string): boolean => {
-  return userName === chatStore.userName
+const isCurrentUser = (senderId: string): boolean => {
+  return senderId === chatStore.currentUserId
 }
 
-const startEdit = (message: Message): void => {
+const startEdit = (message: ChatMessage): void => {
   editingId.value = message.id
   editContent.value = message.content
 }
 
 const saveEdit = async (id: string): Promise<void> => {
-  if (editContent.value.trim() && editContent.value !== messages.value.find(m => m.id === id)?.content) {
+  const existing = messages.value.find(message => message.id === id)
+  if (!existing) return
+
+  if (editContent.value.trim() && editContent.value !== existing.content) {
     await chatStore.updateMessage(id, editContent.value)
   }
+
   editingId.value = null
   editContent.value = ''
 }
@@ -137,24 +148,13 @@ const deleteMsg = async (id: string): Promise<void> => {
   }
 }
 
-onMounted(async () => {
-  await chatStore.loadMessages()
-  subscription = chatStore.subscribeToMessages()
-})
-
-onUnmounted(() => {
-  if (subscription) {
-    subscription.unsubscribe()
-  }
-})
-
 watch(
   messages,
   async () => {
     await nextTick()
     scrollContainer.value?.scrollIntoView({ behavior: 'smooth' })
   },
-  { deep: true }
+  { deep: true },
 )
 </script>
 
@@ -243,6 +243,7 @@ watch(
     opacity: 0;
     transform: translateY(8px);
   }
+
   to {
     opacity: 1;
     transform: translateY(0);
@@ -259,9 +260,8 @@ watch(
 
 .message-bubble.bot {
   background: white;
-  color: #333;
-  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05);
-  border: 1px solid #e0e0e0;
+  border: 1px solid #e5e5e5;
+  color: #222;
 }
 
 .message-bubble.user {
@@ -272,171 +272,81 @@ watch(
 .message-author {
   font-size: 12px;
   font-weight: 600;
-  margin-bottom: 4px;
-  opacity: 0.7;
+  margin-bottom: 6px;
+  opacity: 0.85;
 }
 
 .message-text {
-  font-size: 14px;
-  margin-bottom: 4px;
+  white-space: pre-wrap;
 }
 
 .message-footer {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  margin-top: 4px;
-  gap: 8px;
+  gap: 10px;
+  margin-top: 8px;
 }
 
 .message-time {
   font-size: 11px;
-  opacity: 0.6;
-  white-space: nowrap;
+  opacity: 0.8;
 }
 
 .edited-badge {
-  font-size: 10px;
-  opacity: 0.7;
   margin-left: 4px;
-  font-style: italic;
 }
 
 .message-actions {
   display: flex;
-  gap: 4px;
-  margin-left: auto;
+  gap: 6px;
 }
 
-.action-btn {
-  background: none;
+.action-btn,
+.edit-save,
+.edit-cancel {
   border: none;
+  background: transparent;
   cursor: pointer;
   padding: 2px;
-  opacity: 0.7;
-  transition: opacity 0.2s;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
   color: inherit;
+  opacity: 0.8;
 }
 
-.action-btn:hover {
+.action-btn:hover,
+.edit-save:hover,
+.edit-cancel:hover {
   opacity: 1;
 }
 
-.action-icon {
-  width: 16px;
-  height: 16px;
+.action-icon,
+.edit-action-icon {
+  width: 15px;
+  height: 15px;
   fill: currentColor;
 }
 
 .edit-mode {
   display: flex;
   flex-direction: column;
-  gap: 4px;
+  gap: 8px;
 }
 
 .edit-input {
-  padding: 6px 8px;
-  border: 1px solid rgba(255, 255, 255, 0.4);
-  border-radius: 6px;
-  background: rgba(255, 255, 255, 0.1);
-  color: white;
-  font-size: 16px;
-  font-family: inherit;
+  width: 100%;
+  padding: 8px 10px;
+  border-radius: 8px;
+  border: 1px solid rgba(255, 255, 255, 0.3);
+  outline: none;
 }
 
 .message-bubble.bot .edit-input {
-  color: #333;
-  background: rgba(0, 0, 0, 0.05);
-  border-color: rgba(0, 0, 0, 0.1);
-}
-
-.edit-input::placeholder {
-  color: rgba(255, 255, 255, 0.6);
-}
-
-.message-bubble.bot .edit-input::placeholder {
-  color: rgba(0, 0, 0, 0.4);
+  border-color: #d2d7e5;
 }
 
 .edit-actions {
   display: flex;
-  gap: 6px;
-}
-
-.edit-save,
-.edit-cancel {
-  width: 28px;
-  height: 24px;
-  border: none;
-  border-radius: 4px;
-  cursor: pointer;
-  transition: all 0.2s;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-}
-
-.edit-action-icon {
-  width: 14px;
-  height: 14px;
-  fill: currentColor;
-}
-
-.message-bubble.user .edit-save {
-  background: rgba(255, 255, 255, 0.2);
-  color: white;
-}
-
-.message-bubble.user .edit-save:hover {
-  background: rgba(255, 255, 255, 0.3);
-}
-
-.message-bubble.user .edit-cancel {
-  background: rgba(255, 0, 0, 0.2);
-  color: white;
-}
-
-.message-bubble.user .edit-cancel:hover {
-  background: rgba(255, 0, 0, 0.3);
-}
-
-.message-bubble.bot .edit-save {
-  background: rgba(102, 126, 234, 0.2);
-  color: #667eea;
-}
-
-.message-bubble.bot .edit-save:hover {
-  background: rgba(102, 126, 234, 0.3);
-}
-
-.message-bubble.bot .edit-cancel {
-  background: rgba(255, 0, 0, 0.1);
-  color: #d32f2f;
-}
-
-.message-bubble.bot .edit-cancel:hover {
-  background: rgba(255, 0, 0, 0.2);
-}
-
-.messages-container::-webkit-scrollbar {
-  width: 5px;
-}
-
-.messages-container::-webkit-scrollbar-thumb {
-  background: rgba(0, 0, 0, 0.2);
-  border-radius: 3px;
-}
-
-.messages-container::-webkit-scrollbar-thumb:hover {
-  background: rgba(0, 0, 0, 0.3);
-}
-
-@media (min-width: 768px) {
-  .edit-input {
-    font-size: 14px;
-  }
+  gap: 8px;
+  justify-content: flex-end;
 }
 </style>

@@ -4,12 +4,11 @@
       <input
         v-model="messageText"
         type="text"
-        placeholder="Nhập tin nhắn..."
+        :placeholder="activeConversationId ? 'Nhập tin nhắn...' : 'Chọn cuộc trò chuyện để nhắn tin'"
         class="text-input"
-        :disabled="isLoading"
-        @keydown.enter="sendMessage"
+        :disabled="isDisabled"
       >
-      <button type="submit" class="send-btn" :disabled="!messageText.trim() || isLoading">
+      <button type="submit" class="send-btn" :disabled="!messageText.trim() || isDisabled">
         {{ isLoading ? '...' : '➤' }}
       </button>
     </form>
@@ -23,10 +22,12 @@ import { useChatStore } from '~/stores/chatStore'
 const chatStore = useChatStore()
 const messageText = ref<string>('')
 const isLoading = computed(() => chatStore.isLoading)
+const activeConversationId = computed(() => chatStore.activeConversationId)
+const isDisabled = computed(() => isLoading.value || !activeConversationId.value)
 
 const sendMessage = async () => {
   const text = messageText.value.trim()
-  if (text && !isLoading.value) {
+  if (text && !isDisabled.value) {
     await chatStore.addMessage(text)
     messageText.value = ''
   }
