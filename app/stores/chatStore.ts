@@ -131,7 +131,7 @@ export const useChatStore = defineStore('chat', () => {
     try {
       // run a delete with a simple numeric filter; the small trick is needed
       // because the Supabase client insists on a WHERE clause.
-      const { data, error } = await supabase
+      const { error } = await supabase
         .from('messages')
         .delete()
         .neq('id', 0)   // matches every row because id is never 0

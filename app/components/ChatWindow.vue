@@ -38,12 +38,12 @@
             </svg>
             <span>{{ userName }}</span>
           </div>
-          <button class="clear-btn" @click="clearChat" title="Xóa chat">
+          <button class="clear-btn" title="Xóa chat" @click="clearChat">
             <svg viewBox="0 0 24 24" class="btn-icon">
               <path :d="mdiTrashCanOutline" />
             </svg>
           </button>
-          <button class="logout-btn" @click="signOut" title="Đăng xuất">
+          <button class="logout-btn" title="Đăng xuất" @click="signOut">
             <svg viewBox="0 0 24 24" class="btn-icon">
               <path :d="mdiLogoutVariant" />
             </svg>
@@ -66,7 +66,7 @@ import {
   mdiLogoutVariant,
   mdiTrashCanOutline,
 } from '@mdi/js'
-import type { AuthChangeEvent, Session, Subscription } from '@supabase/supabase-js'
+import type { AuthChangeEvent, Session } from '@supabase/supabase-js'
 import { useSupabase } from '~/composables/useSupabase'
 import { useChatStore } from '~/stores/chatStore'
 import MessageList from './MessageList.vue'
@@ -78,13 +78,14 @@ const { supabase } = useSupabase()
 const messageCount = computed(() => chatStore.messages.length)
 const userName = computed(() => chatStore.userName)
 
-const authLoading = ref(true)
-const isAuthenticated = ref(false)
-const authError = ref('')
-const authUserEmail = ref('')
-let authSubscription: Subscription | null = null
+const authLoading = ref<boolean>(true)
+const isAuthenticated = ref<boolean>(false)
+const authError = ref<string>('')
+const authUserEmail = ref<string>('')
+type AuthSubscription = ReturnType<typeof supabase.auth.onAuthStateChange>['data']['subscription']
+let authSubscription: AuthSubscription | null = null
 
-const applySession = (session: Session | null) => {
+const applySession = (session: Session | null): void => {
   isAuthenticated.value = Boolean(session)
 
   if (!session?.user) {
@@ -100,7 +101,7 @@ const applySession = (session: Session | null) => {
   authUserEmail.value = session.user.email || ''
 }
 
-const checkSession = async () => {
+const checkSession = async (): Promise<void> => {
   authLoading.value = true
   authError.value = ''
 
@@ -115,7 +116,7 @@ const checkSession = async () => {
   authLoading.value = false
 }
 
-const signInWithGoogle = async () => {
+const signInWithGoogle = async (): Promise<void> => {
   authError.value = ''
   const redirectTo = window.location.origin
   const { error } = await supabase.auth.signInWithOAuth({
@@ -128,14 +129,14 @@ const signInWithGoogle = async () => {
   }
 }
 
-const signOut = async () => {
+const signOut = async (): Promise<void> => {
   const { error } = await supabase.auth.signOut()
   if (error) {
     alert('Đăng xuất thất bại, vui lòng thử lại.')
   }
 }
 
-const clearChat = () => {
+const clearChat = (): void => {
   if (confirm('Bạn có chắc muốn xóa toàn bộ đoạn chat?')) {
     chatStore.clearMessages()
   }
@@ -144,10 +145,12 @@ const clearChat = () => {
 onMounted(async () => {
   await checkSession()
 
-  const { data } = supabase.auth.onAuthStateChange((_event: AuthChangeEvent, session: Session | null) => {
-    applySession(session)
-    authLoading.value = false
-  })
+  const { data } = supabase.auth.onAuthStateChange(
+    (_event: AuthChangeEvent, session: Session | null) => {
+      applySession(session)
+      authLoading.value = false
+    },
+  )
 
   authSubscription = data.subscription
 })

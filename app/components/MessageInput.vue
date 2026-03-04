@@ -1,14 +1,14 @@
 <template>
   <div class="input-container">
-    <form @submit.prevent="sendMessage" class="input-form">
+    <form class="input-form" @submit.prevent="sendMessage">
       <input
         v-model="messageText"
         type="text"
         placeholder="Nhập tin nhắn..."
-        @keydown.enter="sendMessage"
         class="text-input"
         :disabled="isLoading"
-      />
+        @keydown.enter="sendMessage"
+      >
       <button type="submit" class="send-btn" :disabled="!messageText.trim() || isLoading">
         {{ isLoading ? '...' : '➤' }}
       </button>
@@ -21,7 +21,7 @@ import { ref, computed } from 'vue'
 import { useChatStore } from '~/stores/chatStore'
 
 const chatStore = useChatStore()
-const messageText = ref('')
+const messageText = ref<string>('')
 const isLoading = computed(() => chatStore.isLoading)
 
 const sendMessage = async () => {

@@ -23,17 +23,17 @@
             v-model="editContent"
             type="text"
             class="edit-input"
+            autofocus
             @keydown.enter="saveEdit(message.id)"
             @keydown.escape="cancelEdit"
-            autofocus
-          />
+          >
           <div class="edit-actions">
-            <button @click="saveEdit(message.id)" class="edit-save" aria-label="Lưu chỉnh sửa">
+            <button class="edit-save" aria-label="Lưu chỉnh sửa" @click="saveEdit(message.id)">
               <svg viewBox="0 0 24 24" class="edit-action-icon">
                 <path :d="mdiCheck" />
               </svg>
             </button>
-            <button @click="cancelEdit" class="edit-cancel" aria-label="Hủy chỉnh sửa">
+            <button class="edit-cancel" aria-label="Hủy chỉnh sửa" @click="cancelEdit">
               <svg viewBox="0 0 24 24" class="edit-action-icon">
                 <path :d="mdiClose" />
               </svg>
@@ -53,18 +53,18 @@
             </div>
             <div v-if="isCurrentUser(message.user_name)" class="message-actions">
               <button 
-                @click="startEdit(message)" 
-                class="action-btn edit-btn"
+                class="action-btn edit-btn" 
                 title="Chỉnh sửa"
+                @click="startEdit(message)"
               >
                 <svg viewBox="0 0 24 24" class="action-icon">
                   <path :d="mdiPencilOutline" />
                 </svg>
               </button>
               <button 
-                @click="deleteMsg(message.id)" 
-                class="action-btn delete-btn"
+                class="action-btn delete-btn" 
                 title="Xóa"
+                @click="deleteMsg(message.id)"
               >
                 <svg viewBox="0 0 24 24" class="action-icon">
                   <path :d="mdiTrashCanOutline" />
@@ -75,7 +75,7 @@
         </template>
       </div>
     </div>
-    <div ref="scrollContainer"></div>
+    <div ref="scrollContainer"/>
   </div>
 </template>
 
@@ -95,29 +95,30 @@ import type { Message } from '~/stores/chatStore'
 
 const chatStore = useChatStore()
 const messages = computed(() => chatStore.messages)
-const scrollContainer = ref<HTMLElement>()
-let subscription: any = null
+const scrollContainer = ref<HTMLElement | null>(null)
+type MessageSubscription = ReturnType<typeof chatStore.subscribeToMessages>
+let subscription: MessageSubscription | null = null
 
 const editingId = ref<string | null>(null)
-const editContent = ref('')
+const editContent = ref<string>('')
 
-const formatTime = (dateStr: string) => {
+const formatTime = (dateStr: string): string => {
   return new Date(dateStr).toLocaleTimeString('vi-VN', {
     hour: '2-digit',
-    minute: '2-digit'
+    minute: '2-digit',
   })
 }
 
-const isCurrentUser = (userName: string) => {
+const isCurrentUser = (userName: string): boolean => {
   return userName === chatStore.userName
 }
 
-const startEdit = (message: Message) => {
-  editingId.value = message.id as string
+const startEdit = (message: Message): void => {
+  editingId.value = message.id
   editContent.value = message.content
 }
 
-const saveEdit = async (id: string) => {
+const saveEdit = async (id: string): Promise<void> => {
   if (editContent.value.trim() && editContent.value !== messages.value.find(m => m.id === id)?.content) {
     await chatStore.updateMessage(id, editContent.value)
   }
@@ -125,12 +126,12 @@ const saveEdit = async (id: string) => {
   editContent.value = ''
 }
 
-const cancelEdit = () => {
+const cancelEdit = (): void => {
   editingId.value = null
   editContent.value = ''
 }
 
-const deleteMsg = async (id: string) => {
+const deleteMsg = async (id: string): Promise<void> => {
   if (confirm('Bạn có chắc muốn xóa tin nhắn này?')) {
     await chatStore.deleteMessage(id)
   }
