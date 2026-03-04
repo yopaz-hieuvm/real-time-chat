@@ -1,8 +1,6 @@
 <template>
   <div class="chat-container">
-    <div v-if="authLoading" class="auth-state loading">
-      Đang kiểm tra phiên đăng nhập...
-    </div>
+    <div v-if="authLoading" class="auth-state loading">Đang kiểm tra phiên đăng nhập...</div>
 
     <div v-else-if="!isAuthenticated" class="auth-state">
       <div class="auth-card">
@@ -48,7 +46,9 @@
             @click="startDirectChat(user.id)"
           >
             <span class="contact-name">{{ user.display_name }}</span>
-            <span class="contact-tag">{{ getDirectConversationWithUser(user.id) ? 'Đã có chat' : 'Nhắn ngay' }}</span>
+            <span class="contact-tag">{{
+              getDirectConversationWithUser(user.id) ? 'Đã có chat' : 'Nhắn ngay'
+            }}</span>
           </button>
         </div>
 
@@ -62,10 +62,10 @@
         </div>
 
         <div v-if="showGroupCreator" class="creator-card">
-          <input v-model="groupName" type="text" class="text-input" placeholder="Tên nhóm" >
+          <input v-model="groupName" type="text" class="text-input" placeholder="Tên nhóm" />
           <div class="group-members">
             <label v-for="user in users" :key="user.id" class="member-item">
-              <input v-model="selectedGroupMemberIds" type="checkbox" :value="user.id" >
+              <input v-model="selectedGroupMemberIds" type="checkbox" :value="user.id" />
               <span>{{ user.display_name }}</span>
             </label>
           </div>
@@ -89,7 +89,9 @@
             @click="openConversation(conversation.id)"
           >
             <div class="conversation-title">{{ conversation.title }}</div>
-            <div class="conversation-type">{{ conversation.type === 'group' ? 'Nhóm' : '1-1' }}</div>
+            <div class="conversation-type">
+              {{ conversation.type === 'group' ? 'Nhóm' : '1-1' }}
+            </div>
           </button>
         </div>
       </aside>
@@ -140,7 +142,11 @@ const users = computed(() => chatStore.users)
 const userName = computed(() => chatStore.userName)
 const activeConversationId = computed(() => chatStore.activeConversationId)
 const activeConversation = computed(() => {
-  return chatStore.conversations.find(conversation => conversation.id === chatStore.activeConversationId) || null
+  return (
+    chatStore.conversations.find(
+      (conversation) => conversation.id === chatStore.activeConversationId,
+    ) || null
+  )
 })
 const isLoading = computed(() => chatStore.isLoading)
 
@@ -218,22 +224,26 @@ const getDirectPeerId = (pairKey: string | null): string | null => {
   if (!pairKey || !chatStore.currentUserId) return null
   const ids = pairKey.split(':').filter(Boolean)
   if (ids.length !== 2) return null
-  if (ids[0] === chatStore.currentUserId) return ids[1]
-  if (ids[1] === chatStore.currentUserId) return ids[0]
+  if (ids[0] === chatStore.currentUserId) return ids[1] ?? null
+  if (ids[1] === chatStore.currentUserId) return ids[0] ?? null
   return null
 }
 
 const getDirectConversationWithUser = (userId: string) => {
-  return conversations.value.find((conversation) => {
-    return conversation.type === 'direct' && getDirectPeerId(conversation.pair_key) === userId
-  }) || null
+  return (
+    conversations.value.find((conversation) => {
+      return conversation.type === 'direct' && getDirectPeerId(conversation.pair_key) === userId
+    }) || null
+  )
 }
 
 const startDirectChat = async (userId: string): Promise<void> => {
   console.error('[ChatWindow.startDirectChat]', { userId })
   const existingConversation = getDirectConversationWithUser(userId)
   if (existingConversation) {
-    console.error('[ChatWindow.startDirectChat.existing]', { conversationId: existingConversation.id })
+    console.error('[ChatWindow.startDirectChat.existing]', {
+      conversationId: existingConversation.id,
+    })
     await openConversation(existingConversation.id)
     return
   }
@@ -245,7 +255,7 @@ const startDirectChat = async (userId: string): Promise<void> => {
   await chatStore.loadConversations()
 
   const targetConversation = createdId
-    ? conversations.value.find(conversation => conversation.id === createdId) || null
+    ? conversations.value.find((conversation) => conversation.id === createdId) || null
     : getDirectConversationWithUser(userId)
 
   if (targetConversation) {
@@ -272,7 +282,10 @@ const createGroupChat = async (): Promise<void> => {
     groupName: groupName.value,
     selectedGroupMemberIds: selectedGroupMemberIds.value,
   })
-  const createdId = await chatStore.createGroupConversation(groupName.value, selectedGroupMemberIds.value)
+  const createdId = await chatStore.createGroupConversation(
+    groupName.value,
+    selectedGroupMemberIds.value,
+  )
   if (!createdId) {
     console.error('[ChatWindow.createGroupChat.failed]')
     alert('Không thể tạo nhóm. Kiểm tra lại tên nhóm và số lượng thành viên.')
@@ -372,7 +385,9 @@ onUnmounted(() => {
   gap: 8px;
   font-size: 15px;
   font-weight: 600;
-  transition: transform 0.2s, box-shadow 0.2s;
+  transition:
+    transform 0.2s,
+    box-shadow 0.2s;
 }
 
 .google-btn:hover {

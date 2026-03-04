@@ -8,7 +8,7 @@ export const useSupabase = () => {
   if (!supabaseUrl || !supabaseAnonKey) {
     throw new Error(
       'Supabase configuration missing:\n' +
-      'Make sure NUXT_PUBLIC_SUPABASE_URL and NUXT_PUBLIC_SUPABASE_ANON_KEY are set in your environment or .env and restart the dev server.'
+        'Make sure NUXT_PUBLIC_SUPABASE_URL and NUXT_PUBLIC_SUPABASE_ANON_KEY are set in your environment or .env and restart the dev server.',
     )
   }
 

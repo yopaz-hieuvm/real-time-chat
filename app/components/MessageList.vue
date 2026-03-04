@@ -34,7 +34,7 @@
             autofocus
             @keydown.enter="saveEdit(message.id)"
             @keydown.escape="cancelEdit"
-          >
+          />
           <div class="edit-actions">
             <button class="edit-save" aria-label="Lưu chỉnh sửa" @click="saveEdit(message.id)">
               <svg viewBox="0 0 24 24" class="edit-action-icon">
@@ -54,25 +54,20 @@
           <div class="message-footer">
             <div class="message-time">
               {{ formatTime(message.created_at) }}
-              <span v-if="message.updated_at && message.updated_at !== message.created_at" class="edited-badge">
+              <span
+                v-if="message.updated_at && message.updated_at !== message.created_at"
+                class="edited-badge"
+              >
                 (chỉnh sửa)
               </span>
             </div>
             <div v-if="isCurrentUser(message.sender_id)" class="message-actions">
-              <button
-                class="action-btn edit-btn"
-                title="Chỉnh sửa"
-                @click="startEdit(message)"
-              >
+              <button class="action-btn edit-btn" title="Chỉnh sửa" @click="startEdit(message)">
                 <svg viewBox="0 0 24 24" class="action-icon">
                   <path :d="mdiPencilOutline" />
                 </svg>
               </button>
-              <button
-                class="action-btn delete-btn"
-                title="Xóa"
-                @click="deleteMsg(message.id)"
-              >
+              <button class="action-btn delete-btn" title="Xóa" @click="deleteMsg(message.id)">
                 <svg viewBox="0 0 24 24" class="action-icon">
                   <path :d="mdiTrashCanOutline" />
                 </svg>
@@ -126,7 +121,7 @@ const startEdit = (message: ChatMessage): void => {
 }
 
 const saveEdit = async (id: string): Promise<void> => {
-  const existing = messages.value.find(message => message.id === id)
+  const existing = messages.value.find((message) => message.id === id)
   if (!existing) return
 
   if (editContent.value.trim() && editContent.value !== existing.content) {

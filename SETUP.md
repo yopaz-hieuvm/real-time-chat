@@ -13,6 +13,7 @@ npm install -g supabase
 ### 2. Kiểm tra Supabase Project
 
 Project URL và API Key đã được cấu hình trong `.env.local`:
+
 ```
 NUXT_PUBLIC_SUPABASE_URL=https://ijmzbxveavwteyumctba.supabase.co
 NUXT_PUBLIC_SUPABASE_ANON_KEY=sb_publishable_zuhxqtlRwdVbtUl-YooTJg_sJ7SomXd
@@ -42,6 +43,7 @@ Xác nhận với **Y** để apply migration.
 ### 4. Cấu hình Environment Variables
 
 Nuxt chỉ tự động nạp các biến từ **`.env`**, không phải `.env.local`. Nếu bạn đang dùng `.env.local` (vì Git ignore), hãy
+
 - copy/rename nó thành `.env` trước khi khởi động server, hoặc
 - thêm nội dung vào cả hai file.
 
@@ -117,9 +119,8 @@ PostgreSQL Database + Realtime WebSocket
 > ```bash
 > supabase db push
 > ```
-> 
+>
 > để áp policy này vào database (lệnh giống như khi bạn tạo migration mới).
-
 
 ```bash
 # Xem danh sách migrations
@@ -141,13 +142,15 @@ supabase migration new --name create_new_table
 ## Troubleshooting
 
 **Q: Gặp lỗi "table does not exist"?**
+
 - Chạy `supabase db push` để chạy migration
 
 **Q: Real-time không hoạt động?**
+
 - Kiểm tra `.env.local` có `NUXT_PUBLIC_SUPABASE_URL` và `NUXT_PUBLIC_SUPABASE_ANON_KEY`
 - Kiểm tra trong Supabase dashboard nếu Realtime được bật cho bảng `messages`
 
 **Q: Muốn reset database?**
+
 - Chạy `supabase migration list` để xem migrations
 - Sau đó xóa bảng manual hoặc tạo migration mới để drop table
-
