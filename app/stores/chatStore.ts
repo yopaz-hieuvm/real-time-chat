@@ -5,7 +5,6 @@ import type {
 } from '@supabase/supabase-js'
 import { defineStore } from 'pinia'
 import { ref } from 'vue'
-import { useSupabase } from '~/composables/useSupabase'
 
 export interface ChatMessage {
   id: string
@@ -174,8 +173,8 @@ export const useChatStore = defineStore('chat', () => {
   }
 
   const resolveAuthUserId = async (): Promise<string | null> => {
-    const { supabase } = useSupabase()
-    const { data, error } = await supabase.auth.getUser()
+    const { $supabase } = useNuxtApp()
+    const { data, error } = await $supabase.auth.getUser()
     if (error) {
       logSupabaseError('resolveAuthUserId.getUser', error)
       return null
@@ -188,11 +187,11 @@ export const useChatStore = defineStore('chat', () => {
   }
 
   const ensureProfile = async () => {
-    const { supabase } = useSupabase()
+    const { $supabase } = useNuxtApp()
     const authUserId = await resolveAuthUserId()
     if (!authUserId) return
 
-    const { error } = await supabase.from('profiles').upsert(
+    const { error } = await $supabase.from('profiles').upsert(
       {
         id: authUserId,
         display_name: userName.value,
@@ -207,11 +206,11 @@ export const useChatStore = defineStore('chat', () => {
   }
 
   const loadUsers = async () => {
-    const { supabase } = useSupabase()
+    const { $supabase } = useNuxtApp()
     if (!currentUserId.value) return
 
     try {
-      const { data, error } = await supabase
+      const { data, error } = await $supabase
         .from('profiles')
         .select('id, display_name, email')
         .neq('id', currentUserId.value)
@@ -225,7 +224,7 @@ export const useChatStore = defineStore('chat', () => {
   }
 
   const loadMessages = async (conversationId?: string) => {
-    const { supabase } = useSupabase()
+    const { $supabase } = useNuxtApp()
     const targetConversationId = conversationId || activeConversationId.value
 
     if (!targetConversationId) {
@@ -234,7 +233,7 @@ export const useChatStore = defineStore('chat', () => {
     }
 
     try {
-      const { data, error } = await supabase
+      const { data, error } = await $supabase
         .from('chat_messages')
         .select('*')
         .eq('conversation_id', targetConversationId)
@@ -253,11 +252,11 @@ export const useChatStore = defineStore('chat', () => {
   }
 
   const loadConversations = async () => {
-    const { supabase } = useSupabase()
+    const { $supabase } = useNuxtApp()
     if (!currentUserId.value) return
 
     try {
-      const { data: memberRows, error: memberError } = await supabase
+      const { data: memberRows, error: memberError } = await $supabase
         .from('conversation_members')
         .select('conversation_id, conversations(id, type, name, pair_key, created_by, created_at)')
         .eq('user_id', currentUserId.value)
@@ -327,7 +326,7 @@ export const useChatStore = defineStore('chat', () => {
   }
 
   const createDirectConversation = async (targetUserId: string): Promise<string | null> => {
-    const { supabase } = useSupabase()
+    const { $supabase } = useNuxtApp()
     const authUserId = await resolveAuthUserId()
     if (!authUserId || !targetUserId || targetUserId === authUserId) return null
 
@@ -335,7 +334,7 @@ export const useChatStore = defineStore('chat', () => {
       isLoading.value = true
       const pairKey = getDirectPairKey(authUserId, targetUserId)
 
-      const { data: existingConversation, error: existingConversationError } = await supabase
+      const { data: existingConversation, error: existingConversationError } = await $supabase
         .from('conversations')
         .select('id')
         .eq('type', 'direct')
@@ -353,7 +352,7 @@ export const useChatStore = defineStore('chat', () => {
 
       if (existingConversation?.id) {
         // Repair missing memberships for pre-existing direct conversations.
-        const { error: ensureSelfMemberError } = await supabase
+        const { error: ensureSelfMemberError } = await $supabase
           .from('conversation_members')
           .upsert(
             { conversation_id: existingConversation.id, user_id: authUserId },
@@ -372,7 +371,7 @@ export const useChatStore = defineStore('chat', () => {
           throw ensureSelfMemberError
         }
 
-        const { error: ensureTargetMemberError } = await supabase
+        const { error: ensureTargetMemberError } = await $supabase
           .from('conversation_members')
           .upsert(
             { conversation_id: existingConversation.id, user_id: targetUserId },
@@ -396,7 +395,7 @@ export const useChatStore = defineStore('chat', () => {
         return existingConversation.id
       }
 
-      const { data: createdConversation, error: createdConversationError } = await supabase
+      const { data: createdConversation, error: createdConversationError } = await $supabase
         .from('conversations')
         .insert({
           type: 'direct',
@@ -414,7 +413,7 @@ export const useChatStore = defineStore('chat', () => {
         throw createdConversationError
       }
 
-      const { error: selfMemberError } = await supabase
+      const { error: selfMemberError } = await $supabase
         .from('conversation_members')
         .upsert(
           { conversation_id: createdConversation.id, user_id: authUserId },
@@ -429,7 +428,7 @@ export const useChatStore = defineStore('chat', () => {
         throw selfMemberError
       }
 
-      const { error: targetMemberError } = await supabase
+      const { error: targetMemberError } = await $supabase
         .from('conversation_members')
         .upsert(
           { conversation_id: createdConversation.id, user_id: targetUserId },
@@ -459,7 +458,7 @@ export const useChatStore = defineStore('chat', () => {
     name: string,
     memberIds: string[],
   ): Promise<string | null> => {
-    const { supabase } = useSupabase()
+    const { $supabase } = useNuxtApp()
     const authUserId = await resolveAuthUserId()
     if (!authUserId) return null
 
@@ -473,7 +472,7 @@ export const useChatStore = defineStore('chat', () => {
     try {
       isLoading.value = true
 
-      const { data: createdConversation, error: createdConversationError } = await supabase
+      const { data: createdConversation, error: createdConversationError } = await $supabase
         .from('conversations')
         .insert({
           type: 'group',
@@ -491,7 +490,7 @@ export const useChatStore = defineStore('chat', () => {
         throw createdConversationError
       }
 
-      const { error: selfMemberError } = await supabase
+      const { error: selfMemberError } = await $supabase
         .from('conversation_members')
         .upsert(
           { conversation_id: createdConversation.id, user_id: authUserId },
@@ -511,7 +510,7 @@ export const useChatStore = defineStore('chat', () => {
         user_id: memberId,
       }))
 
-      const { error: membersError } = await supabase
+      const { error: membersError } = await $supabase
         .from('conversation_members')
         .upsert(membersPayload, { onConflict: 'conversation_id,user_id' })
 
@@ -539,13 +538,13 @@ export const useChatStore = defineStore('chat', () => {
   }
 
   const addMessage = async (content: string) => {
-    const { supabase } = useSupabase()
+    const { $supabase } = useNuxtApp()
     const authUserId = await resolveAuthUserId()
     if (!activeConversationId.value || !authUserId || !content.trim()) return
 
     try {
       isLoading.value = true
-      const { error } = await supabase.from('chat_messages').insert({
+      const { error } = await $supabase.from('chat_messages').insert({
         conversation_id: activeConversationId.value,
         content: content.trim(),
         sender_id: authUserId,
@@ -564,12 +563,12 @@ export const useChatStore = defineStore('chat', () => {
   }
 
   const updateMessage = async (id: string, newContent: string) => {
-    const { supabase } = useSupabase()
+    const { $supabase } = useNuxtApp()
     const authUserId = await resolveAuthUserId()
     if (!authUserId || !newContent.trim()) return
 
     try {
-      const { error } = await supabase
+      const { error } = await $supabase
         .from('chat_messages')
         .update({ content: newContent.trim(), updated_at: new Date().toISOString() })
         .eq('id', id)
@@ -584,12 +583,12 @@ export const useChatStore = defineStore('chat', () => {
   }
 
   const deleteMessage = async (id: string) => {
-    const { supabase } = useSupabase()
+    const { $supabase } = useNuxtApp()
     const authUserId = await resolveAuthUserId()
     if (!authUserId) return
 
     try {
-      const { error } = await supabase.from('chat_messages').delete().eq('id', id)
+      const { error } = await $supabase.from('chat_messages').delete().eq('id', id)
 
       if (error) {
         logSupabaseError('deleteMessage.delete', error, { authUserId, messageId: id })
@@ -601,12 +600,12 @@ export const useChatStore = defineStore('chat', () => {
   }
 
   const clearMessages = async () => {
-    const { supabase } = useSupabase()
+    const { $supabase } = useNuxtApp()
     const authUserId = await resolveAuthUserId()
     if (!activeConversationId.value || !authUserId) return
 
     try {
-      const { error } = await supabase
+      const { error } = await $supabase
         .from('chat_messages')
         .delete()
         .eq('conversation_id', activeConversationId.value)
@@ -628,14 +627,14 @@ export const useChatStore = defineStore('chat', () => {
   }
 
   const subscribeToRealtime = () => {
-    const { supabase } = useSupabase()
+    const { $supabase } = useNuxtApp()
     if (!currentUserId.value) return null
 
     if (realtimeChannel) {
       realtimeChannel.unsubscribe()
     }
 
-    realtimeChannel = supabase
+    realtimeChannel = $supabase
       .channel(`chat:${currentUserId.value}`)
       .on(
         'postgres_changes',
@@ -708,6 +707,8 @@ export const useChatStore = defineStore('chat', () => {
   }
 
   const stopRealtime = () => {
+    console.log('start')
+
     if (!realtimeChannel) return
     realtimeChannel.unsubscribe()
     realtimeChannel = null

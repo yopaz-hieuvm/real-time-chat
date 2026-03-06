@@ -128,13 +128,12 @@ import {
   mdiLogoutVariant,
 } from '@mdi/js'
 import type { AuthChangeEvent, Session } from '@supabase/supabase-js'
-import { useSupabase } from '~/composables/useSupabase'
 import { useChatStore } from '~/stores/chatStore'
 import MessageList from './MessageList.vue'
 import MessageInput from './MessageInput.vue'
 
 const chatStore = useChatStore()
-const { supabase } = useSupabase()
+const { $supabase } = useNuxtApp()
 
 const messageCount = computed(() => chatStore.messages.length)
 const conversations = computed(() => chatStore.conversations)
@@ -158,7 +157,7 @@ const showGroupCreator = ref<boolean>(false)
 const selectedGroupMemberIds = ref<string[]>([])
 const groupName = ref<string>('')
 
-type AuthSubscription = ReturnType<typeof supabase.auth.onAuthStateChange>['data']['subscription']
+type AuthSubscription = ReturnType<typeof $supabase.auth.onAuthStateChange>['data']['subscription']
 let authSubscription: AuthSubscription | null = null
 
 const applySession = async (session: Session | null): Promise<void> => {
@@ -171,7 +170,7 @@ const checkSession = async (): Promise<void> => {
   authLoading.value = true
   authError.value = ''
 
-  const { data, error } = await supabase.auth.getSession()
+  const { data, error } = await $supabase.auth.getSession()
   if (error) {
     authError.value = 'Không thể kiểm tra phiên đăng nhập. Vui lòng thử lại.'
     authLoading.value = false
@@ -184,7 +183,7 @@ const checkSession = async (): Promise<void> => {
 const signInWithGoogle = async (): Promise<void> => {
   authError.value = ''
   const redirectTo = window.location.origin
-  const { error } = await supabase.auth.signInWithOAuth({
+  const { error } = await $supabase.auth.signInWithOAuth({
     provider: 'google',
     options: { redirectTo },
   })
@@ -193,7 +192,7 @@ const signInWithGoogle = async (): Promise<void> => {
 }
 
 const signOut = async (): Promise<void> => {
-  const { error } = await supabase.auth.signOut()
+  const { error } = await $supabase.auth.signOut()
   if (error) alert('Đăng xuất thất bại, vui lòng thử lại.')
 }
 
@@ -265,7 +264,7 @@ const createGroupChat = async (): Promise<void> => {
 onMounted(async () => {
   await checkSession()
 
-  const { data } = supabase.auth.onAuthStateChange(
+  const { data } = $supabase.auth.onAuthStateChange(
     async (_event: AuthChangeEvent, session: Session | null) => {
       await applySession(session)
       authLoading.value = false
