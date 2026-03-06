@@ -181,13 +181,7 @@ export const useChatStore = defineStore('chat', () => {
       return null
     }
 
-    if (!data.user) {
-      console.error('[resolveAuthUserId.noUser]', {
-        currentUserId: currentUserId.value,
-        activeConversationId: activeConversationId.value,
-      })
-      return null
-    }
+    if (!data.user) return null
 
     currentUserId.value = data.user.id
     return data.user.id
@@ -314,7 +308,6 @@ export const useChatStore = defineStore('chat', () => {
 
   const initializeFromSession = async (session: Session | null) => {
     if (!session?.user) {
-      console.error('[initializeFromSession.noSession]')
       stopRealtime()
       resetState()
       return

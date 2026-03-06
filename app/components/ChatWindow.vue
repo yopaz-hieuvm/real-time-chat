@@ -162,11 +162,6 @@ type AuthSubscription = ReturnType<typeof supabase.auth.onAuthStateChange>['data
 let authSubscription: AuthSubscription | null = null
 
 const applySession = async (session: Session | null): Promise<void> => {
-  console.error('[ChatWindow.applySession]', {
-    hasSession: Boolean(session),
-    userId: session?.user?.id || null,
-    email: session?.user?.email || null,
-  })
   isAuthenticated.value = Boolean(session)
   authUserEmail.value = session?.user?.email || ''
   await chatStore.initializeFromSession(session)
@@ -178,18 +173,10 @@ const checkSession = async (): Promise<void> => {
 
   const { data, error } = await supabase.auth.getSession()
   if (error) {
-    console.error('[ChatWindow.checkSession.error]', error)
     authError.value = 'Không thể kiểm tra phiên đăng nhập. Vui lòng thử lại.'
     authLoading.value = false
     return
   }
-
-  console.error('[ChatWindow.checkSession.result]', {
-    hasSession: Boolean(data.session),
-    userId: data.session?.user?.id || null,
-    email: data.session?.user?.email || null,
-  })
-
   await applySession(data.session)
   authLoading.value = false
 }
@@ -202,18 +189,12 @@ const signInWithGoogle = async (): Promise<void> => {
     options: { redirectTo },
   })
 
-  if (error) {
-    console.error('[ChatWindow.signInWithGoogle.error]', error)
-    authError.value = 'Đăng nhập Google thất bại. Vui lòng thử lại.'
-  }
+  if (error) authError.value = 'Đăng nhập Google thất bại. Vui lòng thử lại.'
 }
 
 const signOut = async (): Promise<void> => {
   const { error } = await supabase.auth.signOut()
-  if (error) {
-    console.error('[ChatWindow.signOut.error]', error)
-    alert('Đăng xuất thất bại, vui lòng thử lại.')
-  }
+  if (error) alert('Đăng xuất thất bại, vui lòng thử lại.')
 }
 
 const openConversation = async (conversationId: string): Promise<void> => {
@@ -238,17 +219,11 @@ const getDirectConversationWithUser = (userId: string) => {
 }
 
 const startDirectChat = async (userId: string): Promise<void> => {
-  console.error('[ChatWindow.startDirectChat]', { userId })
   const existingConversation = getDirectConversationWithUser(userId)
   if (existingConversation) {
-    console.error('[ChatWindow.startDirectChat.existing]', {
-      conversationId: existingConversation.id,
-    })
     await openConversation(existingConversation.id)
     return
   }
-
-  console.error('[ChatWindow.startDirectChat.create]')
   const createdId = await chatStore.createDirectConversation(userId)
 
   // Force sync UI after create to avoid "silent no-op" when remote response is delayed.
@@ -269,25 +244,15 @@ const startDirectChat = async (userId: string): Promise<void> => {
     return
   }
 
-  console.error('[ChatWindow.startDirectChat.failedToOpen]', {
-    userId,
-    createdId,
-    conversationsCount: conversations.value.length,
-  })
   alert('Chưa thể mở cuộc trò chuyện 1-1. Vui lòng thử lại.')
 }
 
 const createGroupChat = async (): Promise<void> => {
-  console.error('[ChatWindow.createGroupChat]', {
-    groupName: groupName.value,
-    selectedGroupMemberIds: selectedGroupMemberIds.value,
-  })
   const createdId = await chatStore.createGroupConversation(
     groupName.value,
     selectedGroupMemberIds.value,
   )
   if (!createdId) {
-    console.error('[ChatWindow.createGroupChat.failed]')
     alert('Không thể tạo nhóm. Kiểm tra lại tên nhóm và số lượng thành viên.')
     return
   }
@@ -302,11 +267,6 @@ onMounted(async () => {
 
   const { data } = supabase.auth.onAuthStateChange(
     async (_event: AuthChangeEvent, session: Session | null) => {
-      console.error('[ChatWindow.onAuthStateChange]', {
-        event: _event,
-        hasSession: Boolean(session),
-        userId: session?.user?.id || null,
-      })
       await applySession(session)
       authLoading.value = false
     },
