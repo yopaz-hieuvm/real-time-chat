@@ -159,6 +159,7 @@ const groupName = ref<string>('')
 
 type AuthSubscription = ReturnType<typeof $supabase.auth.onAuthStateChange>['data']['subscription']
 let authSubscription: AuthSubscription | null = null
+let authSyncQueue: Promise<void> = Promise.resolve()
 
 const applySession = async (session: Session | null): Promise<void> => {
   isAuthenticated.value = Boolean(session)
@@ -178,6 +179,26 @@ const checkSession = async (): Promise<void> => {
   }
   await applySession(data.session)
   authLoading.value = false
+}
+
+const scheduleSessionSync = (event: AuthChangeEvent, session: Session | null): void => {
+  // Avoid calling Supabase APIs inline in auth callback to prevent auth lock contention.
+  if (event === 'TOKEN_REFRESHED') {
+    authLoading.value = false
+    return
+  }
+
+  authSyncQueue = authSyncQueue
+    .then(async () => {
+      await applySession(session)
+    })
+    .catch((error: unknown) => {
+      console.error('[auth.scheduleSessionSync]', { event, error })
+      authError.value = 'Không thể đồng bộ phiên đăng nhập. Vui lòng tải lại trang.'
+    })
+    .finally(() => {
+      authLoading.value = false
+    })
 }
 
 const signInWithGoogle = async (): Promise<void> => {
@@ -265,9 +286,10 @@ onMounted(async () => {
   await checkSession()
 
   const { data } = $supabase.auth.onAuthStateChange(
-    async (_event: AuthChangeEvent, session: Session | null) => {
-      await applySession(session)
-      authLoading.value = false
+    (event: AuthChangeEvent, session: Session | null) => {
+      queueMicrotask(() => {
+        scheduleSessionSync(event, session)
+      })
     },
   )
 
